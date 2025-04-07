@@ -9,7 +9,14 @@ use super::{match_path_require_call, PathRequireMode, RequirePathLocatorMode};
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct HybridRequireMode {
     #[serde(flatten)]
-    path_require_mode: PathRequireMode,
+    pub path_require_mode: PathRequireMode,
+}
+impl HybridRequireMode {
+    pub fn new(path_require_mode: PathRequireMode) -> Self {
+        Self {
+            path_require_mode
+        }
+    }
 }
 
 impl RequirePathLocatorMode for HybridRequireMode {
