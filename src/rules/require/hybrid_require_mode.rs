@@ -13,8 +13,8 @@ pub struct HybridRequireMode {
 }
 
 impl RequirePathLocatorMode for HybridRequireMode {
-    fn get_source(&self, name: &str) -> Option<&Path> {
-        self.path_require_mode.get_source(name)
+    fn get_source(&self, name: &str, rel: &Path) -> Option<PathBuf> {
+        self.path_require_mode.get_source(name, rel)
     }
     fn module_folder_name(&self) -> &str {
         self.path_require_mode.module_folder_name()
