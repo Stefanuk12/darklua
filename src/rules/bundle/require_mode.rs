@@ -56,7 +56,11 @@ impl BundleRequireMode {
     ) -> RuleProcessResult {
         match self {
             Self::Path(path_require_mode) => {
-                path_require_mode::process_block(block, context, options, path_require_mode)
+                let mut require_mode = path_require_mode.clone();
+                require_mode
+                    .initialize(context)
+                    .map_err(|err| err.to_string())?;
+                path_require_mode::process_block(block, context, options, &require_mode)
             }
             Self::Hybrid(hybrid_require_mode) => {
                 hybrid_require_mode::process_block(block, context, options, hybrid_require_mode)

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.16.0
+
+* add `remove_statement(index)` method to `Block` ([#254](https://github.com/seaofvoices/darklua/pull/254))
+* fix floating point number representation ([#251](https://github.com/seaofvoices/darklua/pull/251))
+* read Luau configuration files (`.luaurc`) to get path aliases ([#246](https://github.com/seaofvoices/darklua/pull/246))
+* support Luau types when bundling ([#249](https://github.com/seaofvoices/darklua/pull/249))
+
 ## 0.15.0
 
 * improve file watching: re-process specific files, sourcemap changes re-process the project, bundling re-starts whenever a dependent file changes ([#239](https://github.com/seaofvoices/darklua/pull/239))

@@ -403,7 +403,7 @@ dependencies = [
 
 [[package]]
 name = "darklua"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "anstyle",
  "assert_cmd",
@@ -415,6 +415,7 @@ dependencies = [
  "env_logger",
  "full_moon",
  "include_dir",
+ "indexmap 2.7.0",
  "insta",
  "json5",
  "log",

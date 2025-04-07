@@ -1,5 +1,6 @@
 pub(crate) mod hybrid_require_mode;
 pub(crate) mod path_require_mode;
+mod rename_type_declaration;
 mod require_mode;
 
 use std::path::Path;
@@ -13,6 +14,7 @@ use crate::rules::{
 use crate::utils::Timer;
 use crate::Parser;
 
+pub(crate) use rename_type_declaration::RenameTypeDeclarationProcessor;
 use path_require_mode::RequirePathProcessor;
 pub use require_mode::BundleRequireMode;
 use wax::Pattern;
