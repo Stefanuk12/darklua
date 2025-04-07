@@ -9,12 +9,19 @@ use super::{match_path_require_call, PathRequireMode, RequirePathLocatorMode};
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct HybridRequireMode {
     #[serde(flatten)]
-    path_require_mode: PathRequireMode,
+    pub path_require_mode: PathRequireMode,
+}
+impl HybridRequireMode {
+    pub fn new(path_require_mode: PathRequireMode) -> Self {
+        Self {
+            path_require_mode
+        }
+    }
 }
 
 impl RequirePathLocatorMode for HybridRequireMode {
-    fn get_source(&self, name: &str) -> Option<&Path> {
-        self.path_require_mode.get_source(name)
+    fn get_source(&self, name: &str, rel: &Path) -> Option<PathBuf> {
+        self.path_require_mode.get_source(name, rel)
     }
     fn module_folder_name(&self) -> &str {
         self.path_require_mode.module_folder_name()

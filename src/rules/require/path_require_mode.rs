@@ -150,8 +150,8 @@ impl PathRequireMode {
 }
 
 impl RequirePathLocatorMode for PathRequireMode {
-    fn get_source(&self, name: &str) -> Option<&Path> {
-        self.sources.get(name).map(PathBuf::as_path)
+    fn get_source(&self, name: &str, rel: &Path) -> Option<PathBuf> {
+        PathRequireMode::get_source(&self, name, rel)
     }
     fn module_folder_name(&self) -> &str {
         &self.module_folder_name
