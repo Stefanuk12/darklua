@@ -31,12 +31,6 @@ jobs:
           override: true
           profile: minimal
 
-      - name: Publish crate
-        shell: bash
-        run: cargo publish
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-
   create-release:
     needs: publish-crate
 
