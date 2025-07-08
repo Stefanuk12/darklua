@@ -1,6 +1,6 @@
 use std::fmt;
 
-use full_moon::ast::Ast;
+use full_moon::{ast::Ast, LuaVersion};
 
 use crate::{
     ast_converter::{AstConverter, ConvertError},
@@ -8,15 +8,17 @@ use crate::{
     utils::Timer,
 };
 
+/// A parser for Luau code that converts it into an abstract syntax tree.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Parser {
     hold_token_data: bool,
 }
 
 impl Parser {
+    /// Parses Lua code into a [`Block`].
     pub fn parse(&self, code: &str) -> Result<Block, ParserError> {
         let full_moon_parse_timer = Timer::now();
-        let parse_result = full_moon::parse(code);
+        let parse_result = full_moon::parse_fallible(code, LuaVersion::luau()).into_result();
         log::trace!(
             "full-moon parsing done in {}",
             full_moon_parse_timer.duration_label()
@@ -33,6 +35,7 @@ impl Parser {
         })
     }
 
+    /// Configures the parser to preserve token data (line numbers, whitespace and comments).
     pub fn preserve_tokens(mut self) -> Self {
         self.hold_token_data = true;
         self
@@ -54,6 +57,7 @@ enum ParserErrorKind {
     Converting(ConvertError),
 }
 
+/// The error type that can occur when parsing code.
 #[derive(Clone, Debug)]
 pub struct ParserError {
     kind: Box<ParserErrorKind>,
@@ -526,7 +530,7 @@ mod test {
                                     "failed to parse `{}`: {}\nfull-moon result:\n{:#?}",
                                     $input,
                                     err,
-                                    full_moon::parse($input)
+                                    full_moon::parse_fallible($input, LuaVersion::luau()).into_result()
                                 );
                             }
                         };

@@ -27,6 +27,7 @@ tracing = ["dep:tracing"]
 
 [dependencies]
 anstyle = "1.0.10"
+bstr = "1.12.0"
 clap = { version = "4.5.23", features = ["derive"] }
 durationfmt = "0.1.1"
 elsa = "1.10.0"
@@ -35,6 +36,7 @@ full_moon = { version = "1.0.0", features = ["roblox"] }
 indexmap = "2.7.0"
 json5 = "0.4.1"
 log = "0.4.22"
+num-traits = "0.2.19"
 pathdiff = "0.2.3"
 petgraph = "0.6.5"
 regex = "1.11.1"

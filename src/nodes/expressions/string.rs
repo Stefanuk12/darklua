@@ -1,16 +1,29 @@
-use std::str::CharIndices;
-
 use crate::nodes::{StringError, Token};
 
 use super::string_utils;
 
+/// Represents a string literal in Lua source code.
+///
+/// String literals in Lua can be written with single quotes, double quotes,
+/// or with long brackets (`[[...]]` or `[=[...]=]` etc.) for multi-line strings.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StringExpression {
-    value: String,
+    value: Vec<u8>,
     token: Option<Token>,
 }
 
 impl StringExpression {
+    /// Creates a new `StringExpression` from a raw Lua string literal.
+    ///
+    /// Handles quoted strings (with either ' or " delimiters), long bracket strings,
+    /// and processes escape sequences in quoted strings.
+    ///
+    /// ```
+    /// # use darklua_core::nodes::StringExpression;
+    /// let single_quoted = StringExpression::new("'hello'").unwrap();
+    /// let double_quoted = StringExpression::new("\"world\"").unwrap();
+    /// let bracket_string = StringExpression::new("[[multi\nline]]").unwrap();
+    /// ```
     pub fn new(string: &str) -> Result<Self, StringError> {
         if string.starts_with('[') {
             return string
@@ -41,72 +54,102 @@ impl StringExpression {
         let mut chars = string.char_indices();
 
         match (chars.next(), chars.next_back()) {
-            (Some((_, first_char)), Some((_, last_char))) if first_char == last_char => {
+            (Some((_, '"')), Some((_, '"'))) | (Some((_, '\'')), Some((_, '\''))) => {
                 string_utils::read_escaped_string(chars, Some(string.len())).map(Self::from_value)
             }
-            (None, None) | (None, Some(_)) | (Some(_), None) => {
-                Err(StringError::invalid("missing quotes"))
+            (Some((_, '"')), Some((_, '\''))) | (Some((_, '\'')), Some((_, '"'))) => {
+                Err(StringError::invalid("quotes do not match"))
             }
-            (Some(_), Some(_)) => Err(StringError::invalid("quotes do not match")),
+            _ => Err(StringError::invalid("missing quotes")),
         }
     }
 
+    /// Creates an empty string expression.
     pub fn empty() -> Self {
         Self {
-            value: "".to_owned(),
+            value: b"".to_vec(),
             token: None,
         }
     }
 
-    pub fn from_value<T: Into<String>>(value: T) -> Self {
+    /// Creates a new `StringExpression` from a string value.
+    pub fn from_value(value: impl IntoLuaStringValue) -> Self {
         Self {
-            value: value.into(),
+            value: value.into_lua_string_value(),
             token: None,
         }
     }
 
+    /// Attaches a token to this string expression.
     pub fn with_token(mut self, token: Token) -> Self {
         self.token = Some(token);
         self
     }
 
+    /// Sets the token for this string expression.
     #[inline]
     pub fn set_token(&mut self, token: Token) {
         self.token = Some(token);
     }
 
+    /// Returns the token associated with this string expression, if any.
     #[inline]
     pub fn get_token(&self) -> Option<&Token> {
         self.token.as_ref()
     }
 
+    /// Returns the string value.
     #[inline]
-    pub fn get_value(&self) -> &str {
+    pub fn get_value(&self) -> &[u8] {
         &self.value
     }
 
+    /// Returns the string value if it is valid UTF-8.
     #[inline]
-    pub fn into_value(self) -> String {
+    pub fn get_string_value(&self) -> Option<&str> {
+        str::from_utf8(&self.value).ok()
+    }
+
+    /// Consumes the string expression and returns the inner string value.
+    #[inline]
+    pub fn into_value(self) -> Vec<u8> {
         self.value
     }
 
+    /// Consumes the string expression and returns the inner string value if it is valid UTF-8.
+    #[inline]
+    pub fn into_string(self) -> Option<String> {
+        String::from_utf8(self.value).ok()
+    }
+
+    /// Checks if the string contains newline characters.
     pub fn is_multiline(&self) -> bool {
-        self.value.contains('\n')
+        self.value.contains(&b'\n')
     }
 
+    /// Checks if the string contains single quotes.
+    ///
+    /// Useful when determining the best quote style to use when serializing the string.
     pub fn has_single_quote(&self) -> bool {
-        self.find_not_escaped('\'').is_some()
+        self.find_not_escaped(b'\'').is_some()
     }
 
+    /// Checks if the string contains double quotes.
+    ///
+    /// Useful when determining the best quote style to use when serializing the string.
     pub fn has_double_quote(&self) -> bool {
-        self.find_not_escaped('"').is_some()
+        self.find_not_escaped(b'"').is_some()
     }
 
-    fn find_not_escaped(&self, pattern: char) -> Option<usize> {
-        self.find_not_escaped_from(pattern, &mut self.value.char_indices())
+    fn find_not_escaped(&self, pattern: u8) -> Option<usize> {
+        self.find_not_escaped_from(pattern, &mut self.value.iter().copied().enumerate())
     }
 
-    fn find_not_escaped_from(&self, pattern: char, chars: &mut CharIndices) -> Option<usize> {
+    fn find_not_escaped_from(
+        &self,
+        pattern: u8,
+        mut chars: impl Iterator<Item = (usize, u8)>,
+    ) -> Option<usize> {
         let mut escaped = false;
         chars.find_map(|(index, character)| {
             if escaped {
@@ -114,7 +157,7 @@ impl StringExpression {
                 None
             } else {
                 match character {
-                    '\\' => {
+                    b'\\' => {
                         escaped = true;
                         None
                     }
@@ -131,6 +174,60 @@ impl StringExpression {
     }
 
     super::impl_token_fns!(iter = [token]);
+}
+
+/// Trait for converting string related values into a Lua string value.
+pub trait IntoLuaStringValue {
+    fn into_lua_string_value(self) -> Vec<u8>;
+}
+
+impl IntoLuaStringValue for String {
+    fn into_lua_string_value(self) -> Vec<u8> {
+        self.into_bytes()
+    }
+}
+
+impl IntoLuaStringValue for &String {
+    fn into_lua_string_value(self) -> Vec<u8> {
+        self.as_bytes().to_vec()
+    }
+}
+
+impl IntoLuaStringValue for &str {
+    fn into_lua_string_value(self) -> Vec<u8> {
+        self.as_bytes().to_vec()
+    }
+}
+
+impl IntoLuaStringValue for Vec<u8> {
+    fn into_lua_string_value(self) -> Vec<u8> {
+        self
+    }
+}
+
+impl IntoLuaStringValue for &[u8] {
+    fn into_lua_string_value(self) -> Vec<u8> {
+        self.to_vec()
+    }
+}
+
+impl<const N: usize> IntoLuaStringValue for [u8; N] {
+    fn into_lua_string_value(self) -> Vec<u8> {
+        self.to_vec()
+    }
+}
+
+impl<const N: usize> IntoLuaStringValue for &[u8; N] {
+    fn into_lua_string_value(self) -> Vec<u8> {
+        self.to_vec()
+    }
+}
+
+impl IntoLuaStringValue for char {
+    fn into_lua_string_value(self) -> Vec<u8> {
+        let mut buf = [0u8; 4];
+        self.encode_utf8(&mut buf).as_bytes().to_vec()
+    }
 }
 
 #[cfg(test)]
@@ -193,100 +290,151 @@ mod test {
         escaped_tilde_hex_lowercase("\\x7e") => "~",
         skips_whitespaces_but_no_spaces("\\z") => "",
         skips_whitespaces("a\\z   \n\n   \\nb") => "a\nb",
+        escaped_176("\\176") => b"\xB0",
         escaped_unicode_single_digit("\\u{0}") => "\0",
         escaped_unicode_two_hex_digits("\\u{AB}") => "\u{AB}",
         escaped_unicode_three_digit("\\u{123}") => "\u{123}",
         escaped_unicode_last_value("\\u{10FFFF}") => "\u{10FFFF}",
     );
 
-    macro_rules! test_quoted_failures {
-        ($($name:ident => $input:literal),* $(,)?) => {
-            mod single_quoted_failures {
-                use super::*;
-                $(
-                    #[test]
-                    fn $name() {
-                        let quoted = format!("'{}'", $input);
-                        assert!(StringExpression::new(&quoted).is_err());
-                    }
-                )*
-            }
+    mod invalid_string_errors {
+        use super::*;
 
-            mod double_quoted_failures {
-                use super::*;
-                $(
-                    #[test]
-                    fn $name() {
-                        let quoted = format!("\"{}\"", $input);
-                        assert!(StringExpression::new(&quoted).is_err());
-                    }
-                )*
-            }
-        };
+        #[test]
+        fn double_quoted_single_backslash() {
+            insta::assert_snapshot!(StringExpression::new("\"\\\"").unwrap_err().to_string(), @r###"malformed escape sequence at 1: string ended after '\'"###);
+        }
+
+        #[test]
+        fn single_quoted_single_backslash() {
+            insta::assert_snapshot!(StringExpression::new("'\\'").unwrap_err().to_string(), @r###"malformed escape sequence at 1: string ended after '\'"###);
+        }
+
+        #[test]
+        fn double_quoted_escaped_too_large_ascii() {
+            insta::assert_snapshot!(StringExpression::new("\"\\256\"").unwrap_err().to_string(), @"malformed escape sequence at 1: cannot escape ascii character greater than 256");
+        }
+
+        #[test]
+        fn single_quoted_escaped_too_large_ascii() {
+            insta::assert_snapshot!(StringExpression::new("'\\256'").unwrap_err().to_string(), @"malformed escape sequence at 1: cannot escape ascii character greater than 256");
+        }
+
+        #[test]
+        fn double_quoted_escaped_too_large_unicode() {
+            insta::assert_snapshot!(StringExpression::new("\"\\u{110000}\"").unwrap_err().to_string(), @"malformed escape sequence at 1: invalid unicode value");
+        }
+
+        #[test]
+        fn single_quoted_escaped_too_large_unicode() {
+            insta::assert_snapshot!(StringExpression::new("'\\u{110000}'").unwrap_err().to_string(), @"malformed escape sequence at 1: invalid unicode value");
+        }
+
+        #[test]
+        fn double_quoted_escaped_missing_opening_brace_unicode() {
+            insta::assert_snapshot!(StringExpression::new("\"\\uAB\"").unwrap_err().to_string(), @"malformed escape sequence at 1: expected opening curly brace");
+        }
+
+        #[test]
+        fn single_quoted_escaped_missing_opening_brace_unicode() {
+            insta::assert_snapshot!(StringExpression::new("'\\uAB'").unwrap_err().to_string(), @"malformed escape sequence at 1: expected opening curly brace");
+        }
+
+        #[test]
+        fn double_quoted_escaped_missing_closing_brace_unicode() {
+            insta::assert_snapshot!(StringExpression::new("\"\\u{0p\"").unwrap_err().to_string(), @"malformed escape sequence at 1: expected closing curly brace");
+        }
+
+        #[test]
+        fn single_quoted_escaped_missing_closing_brace_unicode() {
+            insta::assert_snapshot!(StringExpression::new("'\\u{0p'").unwrap_err().to_string(), @"malformed escape sequence at 1: expected closing curly brace");
+        }
+
+        #[test]
+        fn empty_string() {
+            insta::assert_snapshot!(StringExpression::new("").unwrap_err().to_string(), @"invalid string: missing quotes");
+        }
+
+        #[test]
+        fn missing_quotes() {
+            insta::assert_snapshot!(StringExpression::new("hello").unwrap_err().to_string(), @"invalid string: missing quotes");
+        }
+
+        #[test]
+        fn delimiters_matching_but_not_quotes() {
+            insta::assert_snapshot!(StringExpression::new("aa").unwrap_err().to_string(), @"invalid string: missing quotes");
+        }
+
+        #[test]
+        fn single_quote() {
+            insta::assert_snapshot!(StringExpression::new("'").unwrap_err().to_string(), @"invalid string: missing quotes");
+        }
+
+        #[test]
+        fn double_quote() {
+            insta::assert_snapshot!(StringExpression::new("\"").unwrap_err().to_string(), @"invalid string: missing quotes");
+        }
+
+        #[test]
+        fn quotes_not_matching() {
+            insta::assert_snapshot!(StringExpression::new("'\"").unwrap_err().to_string(), @"invalid string: quotes do not match");
+        }
     }
-
-    test_quoted_failures!(
-        single_backslash => "\\",
-        escaped_too_large_ascii => "\\256",
-        escaped_too_large_unicode => "\\u{110000}",
-        escaped_missing_opening_brace_unicode => "\\uAB",
-        escaped_missing_closing_brace_unicode => "\\u{0p",
-    );
 
     #[test]
     fn new_removes_double_quotes() {
         let string = StringExpression::new(r#""hello""#).unwrap();
 
-        assert_eq!(string.get_value(), "hello");
+        assert_eq!(string.get_value(), b"hello");
     }
 
     #[test]
     fn new_removes_single_quotes() {
         let string = StringExpression::new("'hello'").unwrap();
 
-        assert_eq!(string.get_value(), "hello");
+        assert_eq!(string.get_value(), b"hello");
     }
 
     #[test]
     fn new_removes_double_brackets() {
         let string = StringExpression::new("[[hello]]").unwrap();
 
-        assert_eq!(string.get_value(), "hello");
+        assert_eq!(string.get_value(), b"hello");
     }
 
     #[test]
     fn new_removes_double_brackets_and_skip_first_new_line() {
         let string = StringExpression::new("[[\nhello]]").unwrap();
 
-        assert_eq!(string.get_value(), "hello");
+        assert_eq!(string.get_value(), b"hello");
     }
 
     #[test]
     fn new_removes_double_brackets_with_one_equals() {
         let string = StringExpression::new("[=[hello]=]").unwrap();
 
-        assert_eq!(string.get_value(), "hello");
+        assert_eq!(string.get_value(), b"hello");
     }
 
     #[test]
     fn new_removes_double_brackets_with_multiple_equals() {
         let string = StringExpression::new("[==[hello]==]").unwrap();
 
-        assert_eq!(string.get_value(), "hello");
+        assert_eq!(string.get_value(), b"hello");
     }
 
     #[test]
     fn new_skip_invalid_escape_in_double_quoted_string() {
         let string = StringExpression::new("'\\oo'").unwrap();
 
-        assert_eq!(string.get_value(), "oo");
+        assert_eq!(string.get_value(), b"oo");
     }
 
     #[test]
     fn new_skip_invalid_escape_in_single_quoted_string() {
         let string = StringExpression::new("\"\\oo\"").unwrap();
 
-        assert_eq!(string.get_value(), "oo");
+        assert_eq!(string.get_value(), b"oo");
     }
 
     #[test]
