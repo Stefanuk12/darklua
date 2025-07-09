@@ -274,6 +274,9 @@ pub fn parse_roblox(call: &FunctionCall, starting_path: &Path) -> DarkluaResult<
         Some(Expression::Index(index)) => {
             parse_roblox_index(index, &mut path_builder, &mut current_path, &mut parented)?
         }
+        Some(Expression::Call(call)) => {
+            parse_ffc_wfc(&call, &mut path_builder, &mut current_path, &mut parented)?
+        }
         _ => Err(DarkluaError::custom(
             "unexpected require argument, only accepts fields or indexes",
         )
@@ -304,8 +307,49 @@ pub fn parse_roblox(call: &FunctionCall, starting_path: &Path) -> DarkluaResult<
         let project_data: RojoProject = serde_json::from_reader(project_json)?;
         current_path.push(project_data.tree.path)
     }
-    
+
     Ok(Some(current_path))
+}
+
+fn parse_ffc_wfc(
+    call: &FunctionCall,
+    path_builder: &mut Vec<String>,
+    current_path: &mut PathBuf,
+    parented: &mut bool,
+) -> DarkluaResult<()> {
+    if let Some(x) = call.get_method() {
+        if !matches!(x.get_name().as_str(), "FindFirstChild" | "WaitForChild") {
+            Err(DarkluaError::custom("invalid method call found")
+                .context("while parsing FFC/WFC in require"))?
+        }
+    } else {
+        Err(DarkluaError::custom("only method calls are accepted")
+            .context("while parsing FFC/WFC in require"))?
+    }
+
+    match call.get_arguments() {
+        Arguments::String(x) => path_builder.push(x.clone().into_string().unwrap_or_default()),
+        Arguments::Tuple(x) => path_builder.push(
+            x.iter_values()
+                .next()
+                .and_then(|x| match x {
+                    Expression::String(x) => x.clone().into_string(),
+                    _ => None,
+                })
+                .ok_or(
+                    DarkluaError::custom("no arguments found for method call")
+                        .context("while parsing FFC/WFC in require"),
+                )?,
+        ),
+        _ => Err(DarkluaError::custom(
+            "only string and tuple arguments are accepted for method calls",
+        )
+        .context("while parsing FFC/WFC in require"))?,
+    };
+
+    parse_roblox_prefix(call.get_prefix(), path_builder, current_path, parented)?;
+
+    Ok(())
 }
 
 fn parse_roblox_prefix(
@@ -320,6 +364,7 @@ fn parse_roblox_prefix(
         Prefix::Identifier(x) => {
             handle_roblox_script_parent(x.get_name(), path_builder, current_path, parented)?
         }
+        Prefix::Call(x) => parse_ffc_wfc(&x, path_builder, current_path, parented)?,
         _ => Err(
             DarkluaError::custom("unexpected prefix, only constants accepted")
                 .context("while parsing roblox require"),
@@ -340,9 +385,13 @@ fn parse_roblox_expression(
         Expression::Identifier(x) => {
             handle_roblox_script_parent(x.get_name(), path_builder, current_path, parented)?
         }
-        Expression::String(x) => {
-            handle_roblox_script_parent(x.get_string_value().unwrap_or_default(), path_builder, current_path, parented)?
-        }
+        Expression::String(x) => handle_roblox_script_parent(
+            x.get_string_value().unwrap_or_default(),
+            path_builder,
+            current_path,
+            parented,
+        )?,
+        Expression::Call(x) => parse_ffc_wfc(&x, path_builder, current_path, parented)?,
         _ => Err(
             DarkluaError::custom("unexpected expression, only constants accepted")
                 .context("while parsing roblox require"),
@@ -393,7 +442,7 @@ fn handle_roblox_script_parent(
                 if back == "Parent" {
                     path_builder.pop();
                 } else {
-                    break
+                    break;
                 }
             }
         }
