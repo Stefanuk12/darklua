@@ -304,7 +304,7 @@ pub fn parse_roblox(call: &FunctionCall, starting_path: &Path) -> DarkluaResult<
         let project_data: RojoProject = serde_json::from_reader(project_json)?;
         current_path.push(project_data.tree.path)
     }
-
+    
     Ok(Some(current_path))
 }
 
@@ -341,7 +341,7 @@ fn parse_roblox_expression(
             handle_roblox_script_parent(x.get_name(), path_builder, current_path, parented)?
         }
         Expression::String(x) => {
-            handle_roblox_script_parent(x.get_value(), path_builder, current_path, parented)?
+            handle_roblox_script_parent(x.get_string_value().unwrap_or_default(), path_builder, current_path, parented)?
         }
         _ => Err(
             DarkluaError::custom("unexpected expression, only constants accepted")
@@ -384,7 +384,7 @@ fn handle_roblox_script_parent(
 ) -> DarkluaResult<()> {
     match str {
         "script" => {
-            if let Some(back) = path_builder.last() {
+            while let Some(back) = path_builder.last() {
                 if !(*parented) {
                     current_path.pop();
                     *parented = true;
@@ -392,6 +392,8 @@ fn handle_roblox_script_parent(
 
                 if back == "Parent" {
                     path_builder.pop();
+                } else {
+                    break
                 }
             }
         }
