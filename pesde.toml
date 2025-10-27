@@ -19,7 +19,7 @@ bin = "init.luau"
 [dependencies]
 result = { name = "lukadev_0/result", version = "^1.2.1" }
 option = { name = "lukadev_0/option", version = "^1.2.1" }
-core = { name = "pesde/toolchainlib", version = "^0.2.0" }
+toolchainlib = { name = "pesde/toolchainlib", version = "^0.2.0" }
 
 [indices]
 default = "https://github.com/pesde-pkg/index"

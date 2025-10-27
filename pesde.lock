@@ -74,7 +74,7 @@ ref_ty = "pesde"
 index_url = "https://github.com/pesde-pkg/index"
 
 [graph."pesde/toolchainlib@0.2.0 lune"]
-direct = ["core", { name = "pesde/toolchainlib", version = "^0.2.0", index = "default" }, "standard"]
+direct = ["toolchainlib", { name = "pesde/toolchainlib", version = "^0.2.0", index = "default" }, "standard"]
 
 [graph."pesde/toolchainlib@0.2.0 lune".dependencies]
 dirs = ["jiwonz/dirs@0.6.0 lune", "standard"]
