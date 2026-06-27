@@ -298,7 +298,8 @@ impl<'a> RequireConverter<'a> {
     }
 
     fn try_require_conversion(&mut self, call: &mut FunctionCall) -> DarkluaResult<()> {
-        if let Some((mut require_path, require_mode)) = self.current.find_require(call, self.context)?
+        if let Some((mut require_path, require_mode)) =
+            self.current.find_require(call, self.context)?
         {
             log::trace!("found require path `{}`", require_path.display());
 
