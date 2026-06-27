@@ -7,13 +7,14 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    frontend::Loader,
     generator::{DenseLuaGenerator, LuaGenerator, ReadableLuaGenerator, TokenBasedLuaGenerator},
     nodes::Block,
     rules::{
         bundle::{BundleRequireMode, Bundler},
         get_default_rules, Rule,
     },
-    utils::{deserialize_one_or_many, FilterPattern},
+    utils::{deserialize_one_or_many, deserialize_vec_of_pairs, FilterPattern},
     DarkluaError, Parser,
 };
 
@@ -47,6 +48,10 @@ pub struct Configuration {
         deserialize_with = "deserialize_one_or_many"
     )]
     skip_files: Vec<FilterPattern>,
+    #[serde(flatten)]
+    loaders: LoaderConfiguration,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    lua_extension: Option<LuaExtension>,
 }
 
 impl Configuration {
@@ -59,6 +64,8 @@ impl Configuration {
             location: None,
             apply_to_files: Vec::new(),
             skip_files: Vec::new(),
+            loaders: Default::default(),
+            lua_extension: None,
         }
     }
 
@@ -132,6 +139,25 @@ impl Configuration {
         Ok(())
     }
 
+    /// Attaches a loader to a glob pattern and returns the configuration.
+    pub fn with_loader(mut self, loader: Loader, pattern: &str) -> Result<Self, DarkluaError> {
+        self.add_loader(loader, pattern)?;
+        Ok(self)
+    }
+
+    /// Attaches a loader to a glob pattern.
+    pub fn add_loader(&mut self, loader: Loader, pattern: &str) -> Result<(), DarkluaError> {
+        self.loaders
+            .loaders
+            .push((FilterPattern::new(pattern.to_owned())?, loader));
+        Ok(())
+    }
+
+    /// Clears all registered loaders.
+    pub fn clear_loaders(&mut self) {
+        self.loaders.loaders.clear();
+    }
+
     #[inline]
     pub(crate) fn rules<'a, 'b: 'a>(&'b self) -> impl Iterator<Item = &'a dyn Rule> {
         self.rules.iter().map(AsRef::as_ref)
@@ -153,6 +179,7 @@ impl Configuration {
                 self.build_parser(),
                 bundle_config.require_mode().clone(),
                 bundle_config.excludes(),
+                self.loaders.clone(),
             )
             .with_modules_identifier(bundle_config.modules_identifier());
             Some(bundler)
@@ -182,6 +209,17 @@ impl Configuration {
 
         true
     }
+
+    pub(crate) fn loaders(&self) -> &LoaderConfiguration {
+        &self.loaders
+    }
+
+    pub(crate) fn preferred_lua_extension(&self) -> &'static str {
+        self.lua_extension
+            .as_ref()
+            .unwrap_or(&Default::default())
+            .as_str()
+    }
 }
 
 impl Default for Configuration {
@@ -193,6 +231,8 @@ impl Default for Configuration {
             location: None,
             apply_to_files: Vec::new(),
             skip_files: Vec::new(),
+            loaders: Default::default(),
+            lua_extension: None,
         }
     }
 }
@@ -200,7 +240,12 @@ impl Default for Configuration {
 impl std::fmt::Debug for Configuration {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Config")
+            .field("location", &self.location)
             .field("generator", &self.generator)
+            .field("apply_to_files", &self.apply_to_files)
+            .field("skip_files", &self.skip_files)
+            .field("loaders", &self.loaders)
+            .field("bundle", &self.bundle)
             .field(
                 "rules",
                 &self
@@ -218,6 +263,45 @@ impl std::fmt::Debug for Configuration {
     }
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) struct LoaderConfiguration {
+    #[serde(
+        default,
+        skip_serializing_if = "Vec::is_empty",
+        deserialize_with = "deserialize_vec_of_pairs"
+    )]
+    loaders: Vec<(FilterPattern, Loader)>,
+}
+
+impl LoaderConfiguration {
+    pub(crate) fn get_loader(&self, path: &Path) -> Loader {
+        self.loaders
+            .iter()
+            .find(|(pattern, _)| pattern.matches(path))
+            .map(|(_, loader)| *loader)
+            .or_else(|| Loader::from_path(path))
+            .unwrap_or(Loader::Skip)
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum LuaExtension {
+    #[default]
+    Lua,
+    Luau,
+}
+
+impl LuaExtension {
+    const fn as_str(&self) -> &'static str {
+        match self {
+            Self::Lua => "lua",
+            Self::Luau => "luau",
+        }
+    }
+}
+
 /// Parameters for configuring the Lua code generator.
 ///
 /// This enum defines different modes for generating Lua code, each with its own
@@ -232,13 +316,19 @@ pub enum GeneratorParameters {
     /// Generates dense, compact code with a specified column span.
     Dense {
         /// The maximum number of characters per line.
-        #[serde(default = "get_default_column_span")]
+        #[serde(
+            default = "get_default_column_span",
+            deserialize_with = "crate::utils::deserialize_usize_from_float"
+        )]
         column_span: usize,
     },
     /// Attempts to generate readable code, with a specified column span.
     Readable {
         /// The maximum number of characters per line.
-        #[serde(default = "get_default_column_span")]
+        #[serde(
+            default = "get_default_column_span",
+            deserialize_with = "crate::utils::deserialize_usize_from_float"
+        )]
         column_span: usize,
     },
 }
@@ -404,6 +494,30 @@ mod test {
         }
 
         #[test]
+        fn deserialize_dense_params_with_float_column_span() {
+            let config: Configuration =
+                json5::from_str("{ generator: { name: 'dense', column_span: 120.0 } }").unwrap();
+
+            pretty_assertions::assert_eq!(
+                config.generator,
+                GeneratorParameters::Dense { column_span: 120 }
+            );
+        }
+
+        #[test]
+        fn deserialize_dense_params_with_infinite_column_span() {
+            let config: Configuration =
+                json5::from_str("{ generator: { name: 'dense', column_span: Infinity } }").unwrap();
+
+            pretty_assertions::assert_eq!(
+                config.generator,
+                GeneratorParameters::Dense {
+                    column_span: usize::MAX
+                }
+            );
+        }
+
+        #[test]
         fn deserialize_readable_params() {
             let config: Configuration =
                 json5::from_str("{ generator: { name: 'readable' } }").unwrap();
@@ -427,6 +541,30 @@ mod test {
             );
         }
 
+        #[test]
+        fn deserialize_readable_params_with_float_column_span() {
+            let config: Configuration =
+                json5::from_str("{ generator: { name: 'readable', column_span: 120.6 } }").unwrap();
+
+            pretty_assertions::assert_eq!(
+                config.generator,
+                GeneratorParameters::Readable { column_span: 120 }
+            );
+        }
+
+        #[test]
+        fn deserialize_readable_params_with_infinite_column_span() {
+            let config: Configuration =
+                json5::from_str("{ generator: { name: 'readable', column_span: Infinity } }")
+                    .unwrap();
+
+            pretty_assertions::assert_eq!(
+                config.generator,
+                GeneratorParameters::Readable {
+                    column_span: usize::MAX
+                }
+            );
+        }
         #[test]
         fn deserialize_retain_lines_params_as_string() {
             let config: Configuration = json5::from_str("{generator: 'retain_lines'}").unwrap();
@@ -559,6 +697,41 @@ mod test {
                 result.expect_err("deserialization should fail").to_string(),
                 @"invalid require mode `oops` at line 1 column 26"
             );
+        }
+    }
+
+    mod loaders {
+        use super::*;
+
+        #[test]
+        fn deserialize_custom_loaders() {
+            let config: Configuration =
+                json5::from_str("{ loaders: { '**/*.luau': 'luau', '**/*.json': 'json', '**/*.jsonl': 'json_lines' } }").unwrap();
+
+            insta::assert_debug_snapshot!(config.loaders, @r###"
+            LoaderConfiguration {
+                loaders: [
+                    (
+                        FilterPattern {
+                            pattern: "**/*.luau",
+                        },
+                        Luau,
+                    ),
+                    (
+                        FilterPattern {
+                            pattern: "**/*.json",
+                        },
+                        Json,
+                    ),
+                    (
+                        FilterPattern {
+                            pattern: "**/*.jsonl",
+                        },
+                        JsonLines,
+                    ),
+                ],
+            }
+            "###);
         }
     }
 }

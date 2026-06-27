@@ -1,7 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.19.0
 
+* add `json_lines` content loader and `/zstd`, `/gzip`, `/zlib` encoding variants for `string`, `buffer`, and `bytes` loaders ([#356](https://github.com/seaofvoices/darklua/pull/356))
+* support infinite column span parameter on the `readable` and `dense` generators ([#355](https://github.com/seaofvoices/darklua/pull/355))
+* add content loaders to the configuration file to process more than Lua or Luau files with darklua ([#354](https://github.com/seaofvoices/darklua/pull/354))
 * improve file watching to handle rename events and remove empty folders after processing if they weren't present before the initial run ([#351](https://github.com/seaofvoices/darklua/pull/351))
 * add a new parameter for the `rename_variables` rule so that globals can be detected automatically and then avoided in the renaming pass ([#348](https://github.com/seaofvoices/darklua/pull/348))
 * add support for `const` declaration of variables and functions (e.g. `const var = true` or `const function test() end`) and add rule (`make_assignment_local`) to convert those assignments to `local` assignments ([#346](https://github.com/seaofvoices/darklua/pull/346))
