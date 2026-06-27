@@ -27,6 +27,14 @@ pub(crate) trait PathLocator {
         _source: &Path,
     ) -> Option<(PathBuf, SingularPathLocator<'_, '_, '_>)>;
 
+    fn initialize(
+        &mut self,
+        _path: &Path,
+        _resources: &crate::Resources,
+    ) -> Result<(), DarkluaError> {
+        Ok(())
+    }
+
     fn find_require_path(
         &self,
         path: impl Into<PathBuf>,

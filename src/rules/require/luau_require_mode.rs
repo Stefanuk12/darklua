@@ -38,6 +38,23 @@ impl Default for LuauRequireMode {
     }
 }
 
+impl LuauRequireMode {
+    /// Attempt to load any .luaurc aliases from a source luau path.
+    pub fn load_aliases(
+        &mut self,
+        luau_file: &Path,
+        resources: &crate::Resources,
+    ) -> Result<(), DarkluaError> {
+        if let Some(config) = utils::find_luau_configuration(luau_file, resources)? {
+            self.luau_rc_aliases
+                .get_or_insert_with(HashMap::new)
+                .extend(config.aliases);
+        }
+
+        Ok(())
+    }
+}
+
 impl RequireModeLike for LuauRequireMode {
     fn initialize(&mut self, context: &Context) -> Result<(), DarkluaError> {
         if !self.use_luau_configuration {
@@ -46,13 +63,7 @@ impl RequireModeLike for LuauRequireMode {
         }
 
         // Load aliases from .luaurc configuration
-        if let Some(config) =
-            utils::find_luau_configuration(context.current_path(), context.resources())?
-        {
-            self.luau_rc_aliases.replace(config.aliases);
-        } else {
-            self.luau_rc_aliases.take();
-        }
+        self.load_aliases(context.current_path(), context.resources)?;
 
         Ok(())
     }
@@ -69,8 +80,11 @@ impl RequireModeLike for LuauRequireMode {
         context: &Context,
     ) -> DarkluaResult<Option<(PathBuf, SingularRequireMode)>> {
         if let Some(literal_path) = match_path_require_call(call) {
-            let path_locator =
-                LuauPathLocator::new(self, context.project_location(), context.resources());
+            let path_locator = LuauPathLocator::new(
+                self.clone(),
+                context.project_location(),
+                context.resources(),
+            );
 
             let required_path =
                 path_locator.find_require_path(literal_path, context.current_path())?;

@@ -9,10 +9,10 @@ use crate::{
     Resources,
 };
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum SingularPathLocator<'a, 'b, 'c> {
     Path(RequirePathLocator<'a, 'b, 'c>),
-    Luau(LuauPathLocator<'a, 'b, 'c>),
+    Luau(LuauPathLocator<'b, 'c>),
     Roblox(RobloxPathLocator<'a, 'b, 'c>),
 }
 
@@ -29,7 +29,7 @@ impl<'a, 'b, 'c> SingularPathLocator<'a, 'b, 'c> {
                 resources,
             )),
             SingularRequireMode::Luau(luau_require_mode) => Self::Luau(LuauPathLocator::new(
-                luau_require_mode,
+                luau_require_mode.clone(),
                 extra_module_relative_location,
                 resources,
             )),
@@ -82,7 +82,7 @@ impl PathLocator for SingularPathLocator<'_, '_, '_> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct HybridPathLocator<'a, 'b, 'resources> {
     path_locators: Vec<SingularPathLocator<'a, 'b, 'resources>>,
 }
