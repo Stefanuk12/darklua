@@ -158,6 +158,108 @@ fn use_default_json_config_in_place() {
 }
 
 #[test]
+fn use_default_json_config_in_place_with_apply_to_files_filter() {
+    let resources = memory_resources!(
+        "src/test.lua" => "return _G.VALUE",
+        "src/test2.lua" => "return _G.VALUE",
+        ".darklua.json" => "{ \"rules\": [ { \"rule\": \"inject_global_value\", \"apply_to_files\": [\"**/test.lua\"], \"identifier\": \"VALUE\", \"value\": 1 } ] }",
+    );
+
+    process(&resources, Options::new("src"))
+        .unwrap()
+        .result()
+        .unwrap();
+
+    assert_eq!(resources.get("src/test.lua").unwrap(), "return 1");
+    assert_eq!(resources.get("src/test2.lua").unwrap(), "return _G.VALUE");
+}
+
+#[test]
+fn use_default_json_config_in_place_with_root_level_apply_to_files_filter() {
+    let resources = memory_resources!(
+        "src/test.lua" => "return _G.VALUE",
+        "src/test2.lua" => "return _G.VALUE",
+        ".darklua.json" => "{ \"apply_to_files\": [\"**/test.lua\"], \"rules\": [ { \"rule\": \"inject_global_value\", \"identifier\": \"VALUE\", \"value\": 1 } ] }",
+    );
+
+    process(&resources, Options::new("src"))
+        .unwrap()
+        .result()
+        .unwrap();
+
+    assert_eq!(resources.get("src/test.lua").unwrap(), "return 1");
+    assert_eq!(resources.get("src/test2.lua").unwrap(), "return _G.VALUE");
+}
+
+#[test]
+fn use_default_json_config_in_place_with_apply_to_files_filter_all() {
+    let resources = memory_resources!(
+        "src/test.lua" => "return _G.VALUE",
+        "src/test2.lua" => "return _G.VALUE",
+        ".darklua.json" => "{ \"rules\": [ { \"rule\": \"inject_global_value\", \"apply_to_files\": [\"src/**\"], \"identifier\": \"VALUE\", \"value\": 1 } ] }",
+    );
+
+    process(&resources, Options::new("src"))
+        .unwrap()
+        .result()
+        .unwrap();
+
+    assert_eq!(resources.get("src/test.lua").unwrap(), "return 1");
+    assert_eq!(resources.get("src/test2.lua").unwrap(), "return 1");
+}
+
+#[test]
+fn use_default_json_config_in_place_with_skip_files_filter() {
+    let resources = memory_resources!(
+        "src/test.lua" => "return _G.VALUE",
+        "src/test2.lua" => "return _G.VALUE",
+        ".darklua.json" => "{ \"rules\": [ { \"rule\": \"inject_global_value\", \"skip_files\": [\"**/test.lua\"], \"identifier\": \"VALUE\", \"value\": 1 } ] }",
+    );
+
+    process(&resources, Options::new("src"))
+        .unwrap()
+        .result()
+        .unwrap();
+
+    assert_eq!(resources.get("src/test.lua").unwrap(), "return _G.VALUE");
+    assert_eq!(resources.get("src/test2.lua").unwrap(), "return 1");
+}
+
+#[test]
+fn use_default_json_config_in_place_with_root_level_skip_files_filter() {
+    let resources = memory_resources!(
+        "src/test.lua" => "return _G.VALUE",
+        "src/test2.lua" => "return _G.VALUE",
+        ".darklua.json" => "{ \"skip_files\": [\"**/test.lua\"], \"rules\": [ { \"rule\": \"inject_global_value\", \"identifier\": \"VALUE\", \"value\": 1 } ] }",
+    );
+
+    process(&resources, Options::new("src"))
+        .unwrap()
+        .result()
+        .unwrap();
+
+    assert_eq!(resources.get("src/test.lua").unwrap(), "return _G.VALUE");
+    assert_eq!(resources.get("src/test2.lua").unwrap(), "return 1");
+}
+
+#[test]
+fn use_default_json_config_in_place_with_apply_to_files_and_skip_files_filter() {
+    let resources = memory_resources!(
+        "src/test.lua" => "return _G.VALUE",
+        "src/test2.lua" => "return _G.VALUE",
+        ".darklua.json" => "{ \"rules\": [ { \"rule\": \"inject_global_value\", \"apply_to_files\": [\"src/**\"], \"skip_files\": [\"**/test.lua\"], \"identifier\": \"VALUE\", \"value\": 1 } ] }",
+    );
+
+    process(&resources, Options::new("src"))
+        .unwrap()
+        .result()
+        .unwrap();
+
+    assert_eq!(resources.get("src/test.lua").unwrap(), "return _G.VALUE");
+    assert_eq!(resources.get("src/test2.lua").unwrap(), "return 1");
+}
+
+#[test]
 fn use_default_json5_config_in_place() {
     let resources = memory_resources!(
         "src/test.lua" => "return _G.VALUE",
@@ -172,14 +274,214 @@ fn use_default_json5_config_in_place() {
     assert_eq!(resources.get("src/test.lua").unwrap(), "return 'Hello'");
 }
 
+mod loaders {
+
+    use super::*;
+
+    use pretty_assertions::assert_eq;
+
+    #[test]
+    fn use_custom_loader_to_load_txt_extension_as_luau() {
+        let resources = memory_resources!(
+            "src/test.txt" => "return _G.VALUE",
+            "src/example.luau" => "return _G.VALUE",
+            ".darklua.json" => r#"{
+                "rules": [ { "rule": "inject_global_value", "identifier": "VALUE", "value": 1 } ],
+                "loaders": { "**/*.txt": "luau" },
+                "lua_extension": "luau",
+            }"#,
+        );
+
+        process(&resources, Options::new("src"))
+            .unwrap()
+            .result()
+            .unwrap();
+
+        assert_eq!(resources.get("src/test.luau").unwrap(), "return 1");
+        assert_eq!(resources.get("src/example.luau").unwrap(), "return 1");
+    }
+
+    #[test]
+    fn use_loader_for_json_files() {
+        let resources = memory_resources!(
+            "src/test.json" => r#"{ "value": 1 }"#,
+            ".darklua.json" => r#"{ "rules": [] }"#,
+        );
+
+        process(&resources, Options::new("src"))
+            .unwrap()
+            .result()
+            .unwrap();
+
+        insta::assert_snapshot!(resources.get("src/test.lua").unwrap(), @"return {value=1}");
+    }
+
+    #[test]
+    fn use_loader_for_json_lines_files() {
+        let resources = memory_resources!(
+            "src/test.jsonl" => r#"{ "value": 1 }
+[1, 2, 3]
+true"#,
+            ".darklua.json" => r#"{ "rules": [] }"#,
+        );
+
+        process(&resources, Options::new("src"))
+            .unwrap()
+            .result()
+            .unwrap();
+
+        insta::assert_snapshot!(resources.get("src/test.lua").unwrap(), @"return {{value=1}, {1, 2, 3}, true}");
+    }
+
+    #[test]
+    fn use_loader_for_yaml_file() {
+        let resources = memory_resources!(
+            "src/test.yaml" => r#"value: 1"#,
+            "src/test2.yml" => r#"value: 2"#,
+            ".darklua.json" => r#"{ "rules": [] }"#,
+        );
+
+        process(&resources, Options::new("src"))
+            .unwrap()
+            .result()
+            .unwrap();
+
+        insta::assert_snapshot!(resources.get("src/test.lua").unwrap(), @"return {value=1}");
+        insta::assert_snapshot!(resources.get("src/test2.lua").unwrap(), @"return {value=2}");
+    }
+
+    #[test]
+    fn use_loader_for_toml_file() {
+        let resources = memory_resources!(
+            "src/test.toml" => r#"value = 1"#,
+            ".darklua.json" => r#"{ "rules": [] }"#,
+        );
+
+        process(&resources, Options::new("src"))
+            .unwrap()
+            .result()
+            .unwrap();
+
+        insta::assert_snapshot!(resources.get("src/test.lua").unwrap(), @"return {value=1}");
+    }
+
+    #[test]
+    fn use_loader_for_txt_file() {
+        let resources = memory_resources!(
+            "src/test.txt" => r#"Hello"#,
+            ".darklua.json" => r#"{ "rules": [] }"#,
+        );
+
+        process(&resources, Options::new("src"))
+            .unwrap()
+            .result()
+            .unwrap();
+
+        insta::assert_snapshot!(resources.get("src/test.lua").unwrap(), @"return 'Hello'");
+    }
+
+    #[test]
+    fn use_custom_string_base64_loader_for_txt_file() {
+        let resources = memory_resources!(
+            "src/test.txt" => r#"Hello"#,
+            ".darklua.json" => r#"{
+                "rules": [],
+                "loaders": { "**/*.txt": "string/base64" },
+            }"#,
+        );
+
+        process(&resources, Options::new("src"))
+            .unwrap()
+            .result()
+            .unwrap();
+
+        insta::assert_snapshot!(resources.get("src/test.lua").unwrap(),@ "return 'SGVsbG8='");
+    }
+
+    #[test]
+    fn use_custom_buffer_base64_loader_for_txt_file() {
+        let resources = memory_resources!(
+            "src/test.txt" => r#"Hello"#,
+            ".darklua.json" => r#"{
+                "rules": [],
+                "loaders": { "**/*.txt": "buffer/base64" },
+            }"#,
+        );
+
+        process(&resources, Options::new("src"))
+            .unwrap()
+            .result()
+            .unwrap();
+
+        insta::assert_snapshot!(
+            resources.get("src/test.lua").unwrap(),
+            @"return buffer.fromstring'SGVsbG8='"
+        );
+    }
+
+    #[test]
+    fn use_custom_bytes_loader_for_txt_file() {
+        let resources = memory_resources!(
+            "src/test.txt" => r#"Hello"#,
+            ".darklua.json" => r#"{
+                "rules": [],
+                "loaders": { "**/*.txt": "bytes" },
+            }"#,
+        );
+
+        process(&resources, Options::new("src"))
+            .unwrap()
+            .result()
+            .unwrap();
+
+        insta::assert_snapshot!(resources.get("src/test.lua").unwrap(), @"return {72, 101, 108, 108, 111}");
+    }
+
+    #[test]
+    fn use_custom_bytes_base64_loader_for_txt_file() {
+        let resources = memory_resources!(
+            "src/test.txt" => r#"Hello"#,
+            ".darklua.json" => r#"{
+                "rules": [],
+                "loaders": { "**/*.txt": "bytes/base64" },
+            }"#,
+        );
+
+        process(&resources, Options::new("src"))
+            .unwrap()
+            .result()
+            .unwrap();
+
+        insta::assert_snapshot!(resources.get("src/test.lua").unwrap(), @"return {83, 71, 86, 115, 98, 71, 56, 61}");
+    }
+
+    #[test]
+    fn use_custom_copy_loader_for_txt_file() {
+        let resources = memory_resources!(
+            "src/test.txt" => r#"Hello"#,
+            ".darklua.json" => r#"{
+                "rules": [],
+                "loaders": { "**/*.txt": "copy" },
+            }"#,
+        );
+
+        process(&resources, Options::new("src"))
+            .unwrap()
+            .result()
+            .unwrap();
+
+        insta::assert_snapshot!(resources.get("src/test.txt").unwrap(), @"Hello");
+    }
+}
+
 mod errors {
     use std::path::{Path, PathBuf};
 
     use darklua_core::{
         nodes::Block,
         rules::{
-            Context, Rule, RuleConfiguration, RuleConfigurationError, RuleProcessResult,
-            RuleProperties,
+            Context, Rule, RuleConfiguration, RuleConfigurationError, RuleMetadata,
+            RuleProcessResult, RuleProperties,
         },
         Configuration, WorkerTree,
     };
@@ -207,8 +509,10 @@ mod errors {
             "src/b.lua" => "return 'module b'",
         );
 
-        #[derive(Debug)]
-        struct CustomRule;
+        #[derive(Debug, Default)]
+        struct CustomRule {
+            metadata: RuleMetadata,
+        }
 
         impl RuleConfiguration for CustomRule {
             fn configure(
@@ -225,6 +529,14 @@ mod errors {
             fn serialize_to_properties(&self) -> RuleProperties {
                 Default::default()
             }
+
+            fn set_metadata(&mut self, metadata: RuleMetadata) {
+                self.metadata = metadata;
+            }
+
+            fn metadata(&self) -> &RuleMetadata {
+                &self.metadata
+            }
         }
 
         impl Rule for CustomRule {
@@ -237,7 +549,7 @@ mod errors {
             }
         }
 
-        let rule: Box<dyn Rule> = Box::new(CustomRule);
+        let rule: Box<dyn Rule> = Box::new(CustomRule::default());
 
         assert_errors(
             "simple_cyclic_work_error",

@@ -24,6 +24,33 @@ From the directory where you run `darklua process`, darklua will attempt to read
 
 To provide a different configuration file, this subcommand also accept a specific path to a configuration file with `--config <path>`.
 
+## Content Loaders
+
+darklua chooses how to process each file based on its extension: Lua and Luau files are parsed, recognized data files (such as JSON, TOML, and YAML) are converted to Lua modules, and other files are left alone. With content loaders, you can override these defaults or tell darklua what to do with other files: copy them to the output, turn their content into a Lua module, or skip them.
+
+Loaders are configured with the `loaders` field, which maps glob patterns to loader names. For example, to copy Rojo model files, ignore `.yml` files and turn Markdown files into string modules:
+
+```json5
+{
+  loaders: {
+    "**/*.model.json": "copy",
+    "**/*.yml": "skip",
+    "**/*.md": "string",
+  },
+}
+```
+
+See the [content loaders](/docs/content-loaders) page for the full list of loaders and how each one works.
+
+## Filtering
+
+It is possible to limit which files are processed using `apply_to_files` and `skip_files`. Both accept glob patterns [from this implementation](https://github.com/olson-sean-k/wax/blob/master/README.md#patterns) (same syntax as `bundle.excludes`). Each field can be a single pattern string or an array of patterns.
+
+- `apply_to_files`: When set, only files whose path matches at least one pattern are processed. Files that do not match any pattern are skipped entirely.
+- `skip_files`: When set, any file whose path matches any pattern is skipped. This is **applied after** `apply_to_files`, so you can combine both (e.g. process only `src/**/*.lua` but skip `src/**/*.test.lua`).
+
+When both are empty (the default), all files are processed.
+
 ## Quick Reference
 
 Any missing field will be replaced with its default value.
@@ -32,6 +59,20 @@ Any missing field will be replaced with its default value.
 {
   // Output code in different ways depending on the given generator
   generator: "retain_lines", // default value
+
+  // Restrict on which files rules will be applied
+  apply_to_files: ["src/**/*.luau"],
+  // Exclude applying rules to some files
+  skip_files: ["**/*.test.lua"],
+
+  // Tell darklua how to process files
+  loaders: {
+    "**/*.model.json": "copy",
+    "**/*.md": "string",
+    "**/*.png": "buffer/base64",
+  },
+  // Some content loaders create Lua modules which will use this extension
+  lua_extension: "lua", // or "luau"
 
   bundle: {
     // Identifier used by darklua to store the bundled modules

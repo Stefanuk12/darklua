@@ -4,16 +4,18 @@ mod require_mode;
 
 use std::path::Path;
 
+use wax::Program;
+
+use crate::frontend::LoaderConfiguration;
 use crate::nodes::Block;
 use crate::rules::{
-    Context, RequireMode, Rule, RuleConfiguration, RuleConfigurationError, RuleProcessResult,
-    RuleProperties,
+    Context, RequireMode, Rule, RuleConfiguration, RuleConfigurationError, RuleMetadata,
+    RuleProcessResult, RuleProperties,
 };
 use crate::Parser;
 
 pub(crate) use rename_type_declaration::RenameTypeDeclarationProcessor;
 pub use require_mode::BundleRequireMode;
-use wax::Pattern;
 
 pub const BUNDLER_RULE_NAME: &str = "bundler";
 
@@ -22,6 +24,7 @@ pub struct BundleOptions {
     parser: Parser,
     modules_identifier: String,
     excludes: Option<wax::Any<'static>>,
+    loaders: LoaderConfiguration,
 }
 
 impl BundleOptions {
@@ -29,6 +32,7 @@ impl BundleOptions {
         parser: Parser,
         modules_identifier: impl Into<String>,
         excludes: impl Iterator<Item = &'a str>,
+        loaders: LoaderConfiguration,
     ) -> Self {
         let excludes: Vec<_> = excludes
             .filter_map(|exclusion| match wax::Glob::new(exclusion) {
@@ -53,6 +57,7 @@ impl BundleOptions {
                     .expect("exclude globs errors should be filtered and only emit a warning");
                 Some(any_pattern)
             },
+            loaders,
         }
     }
 
@@ -70,11 +75,16 @@ impl BundleOptions {
             .map(|any| any.is_match(require))
             .unwrap_or(false)
     }
+
+    fn loaders(&self) -> &LoaderConfiguration {
+        &self.loaders
+    }
 }
 
 /// A rule that inlines required modules
 #[derive(Debug)]
 pub(crate) struct Bundler {
+    metadata: RuleMetadata,
     require_mode: RequireMode,
     options: BundleOptions,
 }
@@ -84,10 +94,12 @@ impl Bundler {
         parser: Parser,
         require_mode: RequireMode,
         excludes: impl Iterator<Item = &'a str>,
+        loaders: LoaderConfiguration,
     ) -> Self {
         Self {
+            metadata: RuleMetadata::default(),
             require_mode,
-            options: BundleOptions::new(parser, DEFAULT_MODULE_IDENTIFIER, excludes),
+            options: BundleOptions::new(parser, DEFAULT_MODULE_IDENTIFIER, excludes, loaders),
         }
     }
 
@@ -118,6 +130,14 @@ impl RuleConfiguration for Bundler {
     fn serialize_to_properties(&self) -> RuleProperties {
         RuleProperties::new()
     }
+
+    fn set_metadata(&mut self, metadata: RuleMetadata) {
+        self.metadata = metadata;
+    }
+
+    fn metadata(&self) -> &RuleMetadata {
+        &self.metadata
+    }
 }
 
 const DEFAULT_MODULE_IDENTIFIER: &str = "__DARKLUA_BUNDLE_MODULES";
@@ -134,11 +154,17 @@ mod test {
             Parser::default(),
             RequireMode::default(),
             std::iter::empty(),
+            LoaderConfiguration::default(),
         )
     }
 
     fn new_rule_with_require_mode(mode: impl Into<RequireMode>) -> Bundler {
-        Bundler::new(Parser::default(), mode.into(), std::iter::empty())
+        Bundler::new(
+            Parser::default(),
+            mode.into(),
+            std::iter::empty(),
+            LoaderConfiguration::default(),
+        )
     }
 
     // the bundler rule should only be used internally by darklua

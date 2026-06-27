@@ -83,7 +83,19 @@ mod without_rules {
         .result()
         .unwrap();
 
-        let main = resources.get("out.lua").unwrap();
+        let out_file = resources.get("out.lua");
+
+        assert!(
+            out_file.is_ok(),
+            "failed to locate out.lua file. Resources found: {:#?}",
+            {
+                let mut files = resources.walk("").collect::<Vec<_>>();
+                files.sort();
+                files
+            }
+        );
+
+        let main = out_file.unwrap();
 
         insta::assert_snapshot!(format!("bundle_without_rules_{}", snapshot_name), main);
     }
@@ -430,6 +442,18 @@ mod without_rules {
                 ".darklua.json" => DARKLUA_BUNDLE_ONLY_READABLE_CONFIG,
             ),
             "require_lua_file_forward_exported_types",
+        );
+    }
+
+    #[test]
+    fn require_lua_file_forward_exported_type_functions() {
+        process_main(
+            &memory_resources!(
+                "src/value.lua" => "export type function Nillable(ty) return types.unionof(ty, types.singleton(nil)) end return true",
+                "src/main.lua" => "local value = require('./value.lua') export type Nillable<T> = value.Nillable<T>",
+                ".darklua.json" => DARKLUA_BUNDLE_ONLY_READABLE_CONFIG,
+            ),
+            "require_lua_file_forward_exported_type_functions",
         );
     }
 

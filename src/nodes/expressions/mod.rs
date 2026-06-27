@@ -11,6 +11,7 @@ mod string;
 pub(crate) mod string_utils;
 mod table;
 mod type_cast;
+mod type_instantiation;
 mod unary;
 
 pub use binary::*;
@@ -26,6 +27,7 @@ pub use string::*;
 pub use string_utils::StringError;
 pub use table::*;
 pub use type_cast::*;
+pub use type_instantiation::*;
 pub use unary::*;
 
 use crate::nodes::{FunctionCall, Identifier, Token, Variable};
@@ -73,6 +75,8 @@ pub enum Expression {
     VariableArguments(Option<Token>),
     /// A type cast expression (e.g., `value :: Type`)
     TypeCast(TypeCastExpression),
+    /// A type instantiation expression (e.g., `var<<Type1, Type2>>`)
+    TypeInstantiation(Box<TypeInstantiationExpression>),
 }
 
 impl Expression {
@@ -121,6 +125,9 @@ impl Expression {
                 Self::Table(table) => break table.mutate_last_token(),
                 Self::Parenthese(parenthese) => break parenthese.mutate_last_token(),
                 Self::TypeCast(type_cast) => break type_cast.mutate_last_token(),
+                Self::TypeInstantiation(type_instantiation) => {
+                    break type_instantiation.mutate_last_token()
+                }
                 Self::Unary(unary) => {
                     current = unary.mutate_expression();
                 }
@@ -210,65 +217,30 @@ impl From<f64> for Expression {
     }
 }
 
-impl From<f32> for Expression {
-    fn from(value: f32) -> Self {
-        (value as f64).into()
+impl From<&f64> for Expression {
+    fn from(value: &f64) -> Self {
+        (*value).into()
     }
 }
 
-impl From<usize> for Expression {
-    fn from(value: usize) -> Self {
-        (value as f64).into()
-    }
+macro_rules! impl_from_primitive_number {
+    ($($type:ty),+ $(,)?) => {
+        $(
+        impl From<$type> for Expression {
+            fn from(value: $type) -> Self {
+                (value as f64).into()
+            }
+        }
+        impl From<&$type> for Expression {
+            fn from(value: &$type) -> Self {
+                (*value as f64).into()
+            }
+        }
+        )+
+    };
 }
 
-impl From<u64> for Expression {
-    fn from(value: u64) -> Self {
-        (value as f64).into()
-    }
-}
-
-impl From<u32> for Expression {
-    fn from(value: u32) -> Self {
-        (value as f64).into()
-    }
-}
-
-impl From<u16> for Expression {
-    fn from(value: u16) -> Self {
-        (value as f64).into()
-    }
-}
-
-impl From<u8> for Expression {
-    fn from(value: u8) -> Self {
-        (value as f64).into()
-    }
-}
-
-impl From<i64> for Expression {
-    fn from(value: i64) -> Self {
-        (value as f64).into()
-    }
-}
-
-impl From<i32> for Expression {
-    fn from(value: i32) -> Self {
-        (value as f64).into()
-    }
-}
-
-impl From<i16> for Expression {
-    fn from(value: i16) -> Self {
-        (value as f64).into()
-    }
-}
-
-impl From<i8> for Expression {
-    fn from(value: i8) -> Self {
-        (value as f64).into()
-    }
-}
+impl_from_primitive_number!(f32, usize, u64, u32, u16, u8, i64, i32, i16, i8,);
 
 impl From<BinaryExpression> for Expression {
     fn from(binary: BinaryExpression) -> Expression {
@@ -344,6 +316,9 @@ impl From<Prefix> for Expression {
             Prefix::Identifier(name) => Self::Identifier(name),
             Prefix::Index(index) => Self::Index(index),
             Prefix::Parenthese(expression) => (*expression).into(),
+            Prefix::TypeInstantiation(type_instantiation) => {
+                Self::TypeInstantiation(type_instantiation)
+            }
         }
     }
 }
@@ -381,6 +356,12 @@ impl From<UnaryExpression> for Expression {
 impl From<TypeCastExpression> for Expression {
     fn from(type_cast: TypeCastExpression) -> Self {
         Self::TypeCast(type_cast)
+    }
+}
+
+impl From<TypeInstantiationExpression> for Expression {
+    fn from(type_instantiation: TypeInstantiationExpression) -> Self {
+        Self::TypeInstantiation(Box::new(type_instantiation))
     }
 }
 

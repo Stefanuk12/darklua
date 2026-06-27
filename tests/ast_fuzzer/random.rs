@@ -1,9 +1,10 @@
 use std::iter;
 
 use darklua_core::nodes::{
-    BinaryOperator, CompoundOperator, Identifier, TablePropertyModifier, UnaryOperator,
+    AssignmentKind, BinaryOperator, CompoundOperator, Identifier, TablePropertyModifier,
+    UnaryOperator,
 };
-use rand::{rng, Rng};
+use rand::{rng, RngExt};
 
 pub struct RandomAst {
     block_mean: f64,
@@ -129,6 +130,11 @@ impl RandomAst {
         rng().random_bool(self.function_return_type_prob)
     }
 
+    pub fn function_attributes<'a>(&'a self) -> impl Iterator<Item = Identifier> + 'a {
+        let amount = normal_sample(0.0, 1.0);
+        iter::repeat_with(move || self.identifier()).take(amount)
+    }
+
     pub fn function_is_variadic(&self) -> bool {
         rng().random_bool(self.function_is_variadic_prob)
     }
@@ -158,6 +164,10 @@ impl RandomAst {
 
     pub fn return_length(&self) -> usize {
         normal_sample(self.return_length_mean, self.return_length_std_dev)
+    }
+
+    pub fn type_instantiation_types(&self) -> usize {
+        normal_sample(1.0, 1.0)
     }
 
     pub fn intersection_type_length(&self) -> usize {
@@ -301,6 +311,10 @@ impl RandomAst {
         rng().random_bool(0.5)
     }
 
+    pub fn export_type_function(&self) -> bool {
+        rng().random_bool(0.5)
+    }
+
     pub fn table_type_indexer(&self) -> bool {
         rng().random_bool(0.25)
     }
@@ -328,6 +342,14 @@ impl RandomAst {
             Some(TablePropertyModifier::Read)
         } else {
             Some(TablePropertyModifier::Write)
+        }
+    }
+
+    pub(crate) fn assignment_kind(&self) -> AssignmentKind {
+        if rng().random_bool(0.65) {
+            AssignmentKind::Local
+        } else {
+            AssignmentKind::Const
         }
     }
 }

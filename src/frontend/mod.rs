@@ -1,4 +1,5 @@
 mod configuration;
+mod content_loader;
 mod error;
 mod options;
 mod resources;
@@ -8,14 +9,18 @@ mod work_item;
 mod worker;
 mod worker_tree;
 
+pub(crate) use configuration::LoaderConfiguration;
 pub use configuration::{BundleConfiguration, Configuration, GeneratorParameters};
+pub(crate) use content_loader::ContentType;
+pub use content_loader::Loader;
 pub use error::{DarkluaError, DarkluaResult};
 pub use options::Options;
 pub use resources::Resources;
-use serde::Serialize;
 use work_item::WorkItem;
 use worker::Worker;
 pub use worker_tree::WorkerTree;
+
+use serde::Serialize;
 
 use crate::{
     generator::{DenseLuaGenerator, LuaGenerator},
@@ -67,6 +72,11 @@ pub fn convert_data(value: impl Serialize) -> Result<String, DarkluaError> {
 /// collects work items based on the provided resources and options, and then processes them.
 pub fn process(resources: &Resources, options: Options) -> DarkluaResult<WorkerTree> {
     let mut worker_tree = WorkerTree::default();
+
+    // take a snapshot of the output structure in order to know what folders to preserve when cleaning up
+    if let Some(output) = options.output().filter(|output| *output != options.input()) {
+        worker_tree.snapshot_output_structure(resources, output)?;
+    }
 
     worker_tree.collect_work(resources, &options)?;
     worker_tree.process(resources, options)?;

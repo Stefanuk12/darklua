@@ -1,7 +1,20 @@
 # Changelog
 
-## Unreleased
+## 0.19.0
 
+* add `json_lines` content loader and `/zstd`, `/gzip`, `/zlib` encoding variants for `string`, `buffer`, and `bytes` loaders ([#356](https://github.com/seaofvoices/darklua/pull/356))
+* support infinite column span parameter on the `readable` and `dense` generators ([#355](https://github.com/seaofvoices/darklua/pull/355))
+* add content loaders to the configuration file to process more than Lua or Luau files with darklua ([#354](https://github.com/seaofvoices/darklua/pull/354))
+* improve file watching to handle rename events and remove empty folders after processing if they weren't present before the initial run ([#351](https://github.com/seaofvoices/darklua/pull/351))
+* add a new parameter for the `rename_variables` rule so that globals can be detected automatically and then avoided in the renaming pass ([#348](https://github.com/seaofvoices/darklua/pull/348))
+* add support for `const` declaration of variables and functions (e.g. `const var = true` or `const function test() end`) and add rule (`make_assignment_local`) to convert those assignments to `local` assignments ([#346](https://github.com/seaofvoices/darklua/pull/346))
+* add support for type instantiation prefixes and methods (e.g. `func<<string>>()`) ([#345](https://github.com/seaofvoices/darklua/pull/345))
+
+## 0.18.0
+
+* add `apply_to_files` and `skip_files` parameters to control for which files rules are applied ([#341](https://github.com/seaofvoices/darklua/pull/341))
+* add support for function attributes (like `@native` or `@deprecated`) and a new `remove_attribute` rule to remove specific or all attributes ([#338](https://github.com/seaofvoices/darklua/pull/338))
+* add support for type functions ([#333](https://github.com/seaofvoices/darklua/pull/333))
 * add support for property modifiers in table types (like `read` in a type like `{ read name: string }`) ([#332](https://github.com/seaofvoices/darklua/pull/332))
 
 ## 0.17.3

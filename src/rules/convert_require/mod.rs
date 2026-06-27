@@ -9,7 +9,9 @@ use crate::frontend::DarkluaResult;
 use crate::nodes::{Arguments, Block, FunctionCall};
 use crate::process::{DefaultVisitor, IdentifierTracker, NodeProcessor, NodeVisitor};
 use crate::rules::require::is_require_call;
-use crate::rules::{Context, RuleConfiguration, RuleConfigurationError, RuleProperties};
+use crate::rules::{
+    Context, RuleConfiguration, RuleConfigurationError, RuleMetadata, RuleProperties,
+};
 use crate::DarkluaError;
 
 use instance_path::InstancePath;
@@ -19,6 +21,7 @@ pub use roblox_require_mode::{parse_roblox, RobloxRequireMode};
 use super::{verify_required_properties, PathRequireMode, Rule, RuleProcessResult};
 use crate::rules::require::LuauRequireMode;
 
+use std::ffi::OsStr;
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -295,8 +298,25 @@ impl<'a> RequireConverter<'a> {
     }
 
     fn try_require_conversion(&mut self, call: &mut FunctionCall) -> DarkluaResult<()> {
-        if let Some((require_path, require_mode)) = self.current.find_require(call, self.context)? {
+        if let Some((mut require_path, require_mode)) =
+            self.current.find_require(call, self.context)?
+        {
             log::trace!("found require path `{}`", require_path.display());
+
+            let file_loader = self
+                .context
+                .loaders()
+                .get_loader(&require_path)
+                .to_internal_loader();
+
+            if file_loader.outputs_lua()
+                && !matches!(
+                    require_path.extension().and_then(OsStr::to_str),
+                    Some("lua") | Some("luau")
+                )
+            {
+                require_path.set_extension(self.context.preferred_lua_extension());
+            }
 
             if let Some(new_arguments) =
                 self.target
@@ -327,6 +347,7 @@ pub const CONVERT_REQUIRE_RULE_NAME: &str = "convert_require";
 /// A rule that converts require calls between environments
 #[derive(Debug, PartialEq, Eq)]
 pub struct ConvertRequire {
+    metadata: RuleMetadata,
     current: RequireMode,
     target: SingularRequireMode,
 }
@@ -334,6 +355,7 @@ pub struct ConvertRequire {
 impl Default for ConvertRequire {
     fn default() -> Self {
         Self {
+            metadata: RuleMetadata::default(),
             current: RequireMode::Single(SingularRequireMode::Path(Default::default())),
             target: SingularRequireMode::Roblox(Default::default()),
         }
@@ -389,6 +411,14 @@ impl RuleConfiguration for ConvertRequire {
 
     fn serialize_to_properties(&self) -> RuleProperties {
         RuleProperties::new()
+    }
+
+    fn set_metadata(&mut self, metadata: RuleMetadata) {
+        self.metadata = metadata;
+    }
+
+    fn metadata(&self) -> &RuleMetadata {
+        &self.metadata
     }
 }
 

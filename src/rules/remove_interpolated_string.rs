@@ -4,12 +4,12 @@ use bstr::ByteSlice;
 
 use crate::nodes::{
     Block, Expression, FieldExpression, FunctionCall, Identifier, InterpolatedStringExpression,
-    InterpolationSegment, LocalAssignStatement, Prefix, StringExpression, TupleArguments,
-    TypedIdentifier,
+    InterpolationSegment, Prefix, StringExpression, TupleArguments, TypedIdentifier,
+    VariableAssignment,
 };
 use crate::process::{IdentifierTracker, NodeProcessor, NodeVisitor, ScopeVisitor};
 use crate::rules::{
-    Context, FlawlessRule, RuleConfiguration, RuleConfigurationError, RuleProperties,
+    Context, FlawlessRule, RuleConfiguration, RuleConfigurationError, RuleMetadata, RuleProperties,
 };
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -158,6 +158,7 @@ pub const REMOVE_INTERPOLATED_STRING_RULE_NAME: &str = "remove_interpolated_stri
 /// A rule that removes interpolated strings.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct RemoveInterpolatedString {
+    metadata: RuleMetadata,
     strategy: ReplacementStrategy,
 }
 
@@ -193,7 +194,7 @@ impl FlawlessRule for RemoveInterpolatedString {
                 values.push(Identifier::new(DEFAULT_TOSTRING_IDENTIFIER).into());
             }
 
-            block.insert_statement(0, LocalAssignStatement::new(variables, values));
+            block.insert_statement(0, VariableAssignment::new(variables, values));
         }
     }
 }
@@ -240,6 +241,14 @@ impl RuleConfiguration for RemoveInterpolatedString {
 
         properties
     }
+
+    fn set_metadata(&mut self, metadata: RuleMetadata) {
+        self.metadata = metadata;
+    }
+
+    fn metadata(&self) -> &RuleMetadata {
+        &self.metadata
+    }
 }
 
 #[cfg(test)]
@@ -263,6 +272,7 @@ mod test {
     #[test]
     fn serialize_rule_with_tostring_strategy() {
         let rule: Box<dyn Rule> = Box::new(RemoveInterpolatedString {
+            metadata: RuleMetadata::default(),
             strategy: ReplacementStrategy::ToStringSpecifier,
         });
 
