@@ -21,6 +21,7 @@ pub use roblox_require_mode::{parse_roblox, RobloxRequireMode};
 use super::{verify_required_properties, PathRequireMode, Rule, RuleProcessResult};
 use crate::rules::require::LuauRequireMode;
 
+use std::ffi::OsStr;
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -297,8 +298,24 @@ impl<'a> RequireConverter<'a> {
     }
 
     fn try_require_conversion(&mut self, call: &mut FunctionCall) -> DarkluaResult<()> {
-        if let Some((require_path, require_mode)) = self.current.find_require(call, self.context)? {
+        if let Some((mut require_path, require_mode)) = self.current.find_require(call, self.context)?
+        {
             log::trace!("found require path `{}`", require_path.display());
+
+            let file_loader = self
+                .context
+                .loaders()
+                .get_loader(&require_path)
+                .to_internal_loader();
+
+            if file_loader.outputs_lua()
+                && !matches!(
+                    require_path.extension().and_then(OsStr::to_str),
+                    Some("lua") | Some("luau")
+                )
+            {
+                require_path.set_extension(self.context.preferred_lua_extension());
+            }
 
             if let Some(new_arguments) =
                 self.target
