@@ -212,10 +212,6 @@ impl<'a, 'b, 'resources, PathLocatorImpl: PathLocator + Clone>
 
                 let current_source = mem::replace(&mut self.source, path.to_path_buf());
 
-                let mut new_locator = self.path_locator.clone();
-                new_locator.initialize(path, self.resources)?;
-                let current_locator = mem::replace(&mut self.path_locator, new_locator);
-
                 let apply_processor_timer = Timer::now();
                 DefaultVisitor::visit_block(&mut block, self);
 
@@ -226,7 +222,6 @@ impl<'a, 'b, 'resources, PathLocatorImpl: PathLocator + Clone>
                 );
 
                 self.source = current_source;
-                self.path_locator = current_locator;
 
                 Ok(RequiredResource::Block(block))
             }

@@ -4,8 +4,8 @@ use crate::frontend::DarkluaResult;
 use crate::nodes::{Arguments, FunctionCall, StringExpression};
 use crate::rules::require::{match_path_require_call, path_utils, LuauPathLocator, PathLocator};
 use crate::rules::{Context, RequireMode};
-use crate::utils;
 use crate::DarkluaError;
+use crate::{utils, Resources};
 
 use std::collections::HashMap;
 use std::ffi::OsStr;
@@ -39,16 +39,20 @@ impl Default for LuauRequireMode {
 }
 
 impl LuauRequireMode {
-    /// Attempt to load any .luaurc aliases from a source luau path.
-    pub fn load_aliases(
+    pub(crate) fn load_aliases(
         &mut self,
         luau_file: &Path,
-        resources: &crate::Resources,
+        resources: &Resources,
     ) -> Result<(), DarkluaError> {
+        if !self.use_luau_configuration {
+            return Ok(());
+        }
+
+        // Load aliases from .luaurc configuration
         if let Some(config) = utils::find_luau_configuration(luau_file, resources)? {
-            self.luau_rc_aliases
-                .get_or_insert_with(HashMap::new)
-                .extend(config.aliases);
+            self.luau_rc_aliases.replace(config.aliases);
+        } else {
+            self.luau_rc_aliases.take();
         }
 
         Ok(())
@@ -67,15 +71,7 @@ impl LuauRequireMode {
     }
 
     pub(crate) fn initialize(&mut self, context: &Context) -> Result<(), DarkluaError> {
-        if !self.use_luau_configuration {
-            self.luau_rc_aliases.take();
-            return Ok(());
-        }
-
-        // Load aliases from .luaurc configuration
-        self.load_aliases(context.current_path(), context.resources)?;
-
-        Ok(())
+        self.load_aliases(context.current_path(), context.resources)
     }
 
     #[inline]
