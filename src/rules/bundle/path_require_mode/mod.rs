@@ -27,10 +27,10 @@ pub(crate) enum RequiredResource {
 }
 
 #[derive(Debug)]
-struct RequirePathProcessor<'a, 'b, 'resources, PathLocatorImpl> {
+struct RequirePathProcessor<'a, 'resources, PathLocatorImpl> {
     options: &'a BundleOptions,
     identifier_tracker: IdentifierTracker,
-    path_locator: &'b PathLocatorImpl,
+    path_locator: PathLocatorImpl,
     module_definitions: BuildModuleDefinitions,
     source: PathBuf,
     module_cache: HashMap<PathBuf, Expression>,
@@ -40,13 +40,13 @@ struct RequirePathProcessor<'a, 'b, 'resources, PathLocatorImpl> {
     errors: Vec<String>,
 }
 
-impl<'a, 'b, 'resources, PathLocatorImpl: PathLocator>
-    RequirePathProcessor<'a, 'b, 'resources, PathLocatorImpl>
+impl<'a, 'b, 'resources, PathLocatorImpl: PathLocator + Clone>
+    RequirePathProcessor<'a, 'resources, PathLocatorImpl>
 {
     fn new<'context, 'code>(
         context: &'context Context<'b, 'resources, 'code>,
         options: &'a BundleOptions,
-        path_locator: &'b PathLocatorImpl,
+        path_locator: PathLocatorImpl,
     ) -> Self
     where
         'context: 'b,
@@ -80,7 +80,7 @@ impl<'a, 'b, 'resources, PathLocatorImpl: PathLocator>
         &self,
         call: &FunctionCall,
         source: &Path,
-    ) -> Option<(PathBuf, SingularPathLocator<'_, '_, '_>)> {
+    ) -> Option<(PathBuf, SingularPathLocator<'_, '_>)> {
         if is_require_call(call, self) {
             self.path_locator.match_path_require_call(call, source)
         } else {
@@ -231,8 +231,8 @@ impl<'a, 'b, 'resources, PathLocatorImpl: PathLocator>
     }
 }
 
-impl<'a, 'b, 'resources, PathLocatorImpl: PathLocator> Deref
-    for RequirePathProcessor<'a, 'b, 'resources, PathLocatorImpl>
+impl<'a, 'resources, PathLocatorImpl: PathLocator> Deref
+    for RequirePathProcessor<'a, 'resources, PathLocatorImpl>
 {
     type Target = IdentifierTracker;
 
@@ -241,16 +241,16 @@ impl<'a, 'b, 'resources, PathLocatorImpl: PathLocator> Deref
     }
 }
 
-impl<'a, 'b, 'resources, PathLocatorImpl: PathLocator> DerefMut
-    for RequirePathProcessor<'a, 'b, 'resources, PathLocatorImpl>
+impl<'a, 'resources, PathLocatorImpl: PathLocator> DerefMut
+    for RequirePathProcessor<'a, 'resources, PathLocatorImpl>
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.identifier_tracker
     }
 }
 
-impl<'a, 'b, 'resources, PathLocatorImpl: PathLocator> NodeProcessor
-    for RequirePathProcessor<'a, 'b, 'resources, PathLocatorImpl>
+impl<'a, 'resources, PathLocatorImpl: PathLocator + Clone> NodeProcessor
+    for RequirePathProcessor<'a, 'resources, PathLocatorImpl>
 {
     fn process_expression(&mut self, expression: &mut Expression) {
         if let Expression::Call(call) = expression {
@@ -293,7 +293,7 @@ pub(crate) fn process_block(
     block: &mut Block,
     context: &Context,
     options: &BundleOptions,
-    locator: impl PathLocator,
+    locator: impl PathLocator + Clone,
 ) -> Result<(), String> {
     if options.parser().is_preserving_tokens() {
         log::trace!(
@@ -313,7 +313,7 @@ pub(crate) fn process_block(
         );
     }
 
-    let mut processor = RequirePathProcessor::new(context, options, &locator);
+    let mut processor = RequirePathProcessor::new(context, options, locator);
     ScopeVisitor::visit_block(block, &mut processor);
     processor.apply(block, context)
 }

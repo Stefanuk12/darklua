@@ -754,6 +754,39 @@ mod luaurc {
             "local value = require(script:FindFirstChild('value'):FindFirstChild('default'))",
         );
     }
+
+    #[test]
+    fn convert_alias_module_from_module_with_multiple_luaurc_files() {
+        let resources = memory_resources!(
+            "src/value-1.lua" => "return 1",
+            "src/value-2.lua" => "return 2",
+            "src/value-default.lua" => "return 0",
+
+            "input.lua" => "local value = require('@value')",
+            "try-1/input.lua" => "local value = require('@value')",
+            "try-2/input.lua" => "local value = require('@value')",
+
+            ".luaurc" => r#"{ "aliases": { "value": "./src/value-default.lua" } }"#,
+            "try-1/.luaurc" => r#"{ "aliases": { "value": "../src/value-1.lua" } }"#,
+            "try-2/.luaurc" => r#"{ "aliases": { "value": "../src/value-2.lua" } }"#,
+            ".darklua.json" => CONVERT_PATH_TO_ROBLOX_DEFAULT_CONFIG,
+        );
+        expect_file_process(
+            &resources,
+            "input.lua",
+            "local value = require(script.Parent:FindFirstChild('src'):FindFirstChild('value-default'))",
+        );
+        expect_file_process(
+            &resources,
+            "try-1/input.lua",
+            "local value = require(script.Parent.Parent:FindFirstChild('src'):FindFirstChild('value-1'))",
+        );
+        expect_file_process(
+            &resources,
+            "try-2/input.lua",
+            "local value = require(script.Parent.Parent:FindFirstChild('src'):FindFirstChild('value-2'))",
+        );
+    }
 }
 
 mod sourcemap {

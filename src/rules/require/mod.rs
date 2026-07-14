@@ -25,7 +25,7 @@ pub(crate) trait PathLocator {
         &self,
         call: &FunctionCall,
         _source: &Path,
-    ) -> Option<(PathBuf, SingularPathLocator<'_, '_, '_>)>;
+    ) -> Option<(PathBuf, SingularPathLocator<'_, '_>)>;
 
     fn find_require_path(
         &self,

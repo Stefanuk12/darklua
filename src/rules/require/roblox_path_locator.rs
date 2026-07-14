@@ -14,17 +14,17 @@ use crate::{
 };
 
 #[derive(Clone, Debug)]
-pub(crate) struct RobloxPathLocator<'a, 'b, 'resources> {
-    _roblox_require_mode: &'a RobloxRequireMode,
+pub(crate) struct RobloxPathLocator<'b, 'resources> {
+    _roblox_require_mode: RobloxRequireMode,
     _extra_module_relative_location: &'b Path,
     resources: &'resources Resources,
 }
 
-impl<'a, 'b, 'c> RobloxPathLocator<'a, 'b, 'c> {
+impl<'b, 'resources> RobloxPathLocator<'b, 'resources> {
     pub(crate) fn new(
-        roblox_require_mode: &'a RobloxRequireMode,
+        roblox_require_mode: RobloxRequireMode,
         extra_module_relative_location: &'b Path,
-        resources: &'c Resources,
+        resources: &'resources Resources,
     ) -> Self {
         Self {
             _roblox_require_mode: roblox_require_mode,
@@ -34,12 +34,12 @@ impl<'a, 'b, 'c> RobloxPathLocator<'a, 'b, 'c> {
     }
 }
 
-impl PathLocator for RobloxPathLocator<'_, '_, '_> {
+impl PathLocator for RobloxPathLocator<'_, '_> {
     fn match_path_require_call(
         &self,
         call: &FunctionCall,
         source: &Path,
-    ) -> Option<(PathBuf, SingularPathLocator<'_, '_, '_>)> {
+    ) -> Option<(PathBuf, SingularPathLocator<'_, '_>)> {
         parse_roblox(call, source)
             .ok()
             .flatten()

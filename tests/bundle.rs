@@ -75,13 +75,21 @@ mod without_rules {
     use super::*;
 
     fn process_main(resources: &Resources, snapshot_name: &'static str) {
-        process(
+        match process(
             resources,
             Options::new("src/main.lua").with_output("out.lua"),
-        )
-        .unwrap()
-        .result()
-        .unwrap();
+        ) {
+            Ok(worker_tree) => match worker_tree.result() {
+                Ok(()) => {}
+                Err(err) => {
+                    let err_display: Vec<_> = err.into_iter().map(|err| err.to_string()).collect();
+                    panic!("failed to process main.lua:\n{}", err_display.join("\n\n"));
+                }
+            },
+            Err(err) => {
+                panic!("failed to create worker tree for main.lua: {}", err);
+            }
+        }
 
         let out_file = resources.get("out.lua");
 
@@ -739,6 +747,48 @@ data:
         );
 
         process_main(&resources, "require_small_bundle_case");
+    }
+
+    #[test]
+    fn small_bundle_multi_luaurc_case() {
+        let resources = memory_resources!(
+            "src/try-1/value.lua" => include_str!("./test_cases/small_bundle_multi_luaurc/try-1/value.lua"),
+            "src/try-1/.luaurc" => include_str!("./test_cases/small_bundle_multi_luaurc/try-1/.luaurc"),
+            "src/try-2/value.lua" => include_str!("./test_cases/small_bundle_multi_luaurc/try-2/value.lua"),
+            "src/try-2/.luaurc" => include_str!("./test_cases/small_bundle_multi_luaurc/try-2/.luaurc"),
+
+            "src/values/value-1.lua" => include_str!("./test_cases/small_bundle_multi_luaurc/values/value-1.lua"),
+            "src/values/value-2.lua" => include_str!("./test_cases/small_bundle_multi_luaurc/values/value-2.lua"),
+            "src/values/value-default.lua" => include_str!("./test_cases/small_bundle_multi_luaurc/values/value-default.lua"),
+
+            "src/value.lua" => include_str!("./test_cases/small_bundle_multi_luaurc/value.lua"),
+            "src/main.lua" => include_str!("./test_cases/small_bundle_multi_luaurc/main.lua"),
+            "src/.luaurc" => include_str!("./test_cases/small_bundle_multi_luaurc/.luaurc"),
+            ".darklua.json" => DARKLUA_BUNDLE_ONLY_READABLE_CONFIG,
+        );
+
+        process_main(&resources, "small_bundle_multi_luaurc_case");
+    }
+
+    #[test]
+    fn small_bundle_multi_luaurc_case_luau_mode() {
+        let resources = memory_resources!(
+            "src/try-1/value.lua" => include_str!("./test_cases/small_bundle_multi_luaurc/try-1/value.lua"),
+            "src/try-1/.luaurc" => include_str!("./test_cases/small_bundle_multi_luaurc/try-1/.luaurc"),
+            "src/try-2/value.lua" => include_str!("./test_cases/small_bundle_multi_luaurc/try-2/value.lua"),
+            "src/try-2/.luaurc" => include_str!("./test_cases/small_bundle_multi_luaurc/try-2/.luaurc"),
+
+            "src/values/value-1.lua" => include_str!("./test_cases/small_bundle_multi_luaurc/values/value-1.lua"),
+            "src/values/value-2.lua" => include_str!("./test_cases/small_bundle_multi_luaurc/values/value-2.lua"),
+            "src/values/value-default.lua" => include_str!("./test_cases/small_bundle_multi_luaurc/values/value-default.lua"),
+
+            "src/value.lua" => include_str!("./test_cases/small_bundle_multi_luaurc/value.lua"),
+            "src/main.lua" => include_str!("./test_cases/small_bundle_multi_luaurc/main.lua"),
+            "src/.luaurc" => include_str!("./test_cases/small_bundle_multi_luaurc/.luaurc"),
+            ".darklua.json" => DARKLUA_BUNDLE_ONLY_READABLE_CONFIG_LUAU_MODE,
+        );
+
+        process_main(&resources, "small_bundle_multi_luaurc_case");
     }
 
     #[test]
