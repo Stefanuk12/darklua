@@ -80,7 +80,7 @@ impl<'a, 'b, 'resources, PathLocatorImpl: PathLocator + Clone>
         &self,
         call: &FunctionCall,
         source: &Path,
-    ) -> Option<(PathBuf, SingularPathLocator<'_, '_, '_>)> {
+    ) -> Option<(PathBuf, SingularPathLocator<'_, '_>)> {
         if is_require_call(call, self) {
             self.path_locator.match_path_require_call(call, source)
         } else {

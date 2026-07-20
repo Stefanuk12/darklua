@@ -5,8 +5,8 @@ use crate::nodes::{Arguments, FunctionCall, StringExpression};
 use crate::rules::require::path_utils::get_relative_path;
 use crate::rules::require::{match_path_require_call, path_utils, PathLocator};
 use crate::rules::{Context, RequireModeLike, SingularRequireMode};
-use crate::utils;
 use crate::DarkluaError;
+use crate::{utils, Resources};
 
 use std::collections::HashMap;
 use std::ffi::OsStr;
@@ -59,20 +59,7 @@ fn is_default_module_folder_name(value: &String) -> bool {
 
 impl RequireModeLike for PathRequireMode {
     fn initialize(&mut self, context: &Context) -> Result<(), DarkluaError> {
-        if !self.use_luau_configuration {
-            self.luau_rc_aliases.take();
-            return Ok(());
-        }
-
-        if let Some(config) =
-            utils::find_luau_configuration(context.current_path(), context.resources())?
-        {
-            self.luau_rc_aliases.replace(config.aliases);
-        } else {
-            self.luau_rc_aliases.take();
-        }
-
-        Ok(())
+        self.load_aliases(context.current_path(), context.resources())
     }
 
     fn find_require(
@@ -81,9 +68,12 @@ impl RequireModeLike for PathRequireMode {
         context: &Context,
     ) -> DarkluaResult<Option<(PathBuf, SingularRequireMode)>> {
         if let Some(literal_path) = match_path_require_call(call) {
-            let required_path =
-                RequirePathLocator::new(self, context.project_location(), context.resources())
-                    .find_require_path(literal_path, context.current_path())?;
+            let required_path = RequirePathLocator::new(
+                self.clone(),
+                context.project_location(),
+                context.resources(),
+            )
+            .find_require_path(literal_path, context.current_path())?;
 
             Ok(Some((
                 required_path,
@@ -194,6 +184,24 @@ impl PathRequireMode {
             use_luau_configuration: default_use_luau_configuration(),
             luau_rc_aliases: Default::default(),
         }
+    }
+
+    pub(crate) fn load_aliases(
+        &mut self,
+        luau_file: &Path,
+        resources: &Resources,
+    ) -> Result<(), DarkluaError> {
+        if !self.use_luau_configuration {
+            return Ok(());
+        }
+
+        if let Some(config) = utils::find_luau_configuration(luau_file, resources)? {
+            self.luau_rc_aliases.replace(config.aliases);
+        } else {
+            self.luau_rc_aliases.take();
+        }
+
+        Ok(())
     }
 
     pub(crate) fn module_folder_name(&self) -> &str {

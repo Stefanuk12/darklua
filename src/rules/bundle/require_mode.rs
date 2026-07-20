@@ -31,7 +31,7 @@ impl BundleRequireMode for PathRequireMode {
             .map_err(|err| err.to_string())?;
 
         let locator = RequirePathLocator::new(
-            &require_mode,
+            require_mode,
             context.project_location(),
             context.resources(),
         );
@@ -75,7 +75,7 @@ impl BundleRequireMode for RobloxRequireMode {
             .map_err(|err| err.to_string())?;
 
         let locator = RobloxPathLocator::new(
-            &require_mode,
+            require_mode,
             context.project_location(),
             context.resources(),
         );

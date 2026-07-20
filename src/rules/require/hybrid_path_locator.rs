@@ -10,21 +10,21 @@ use crate::{
 };
 
 #[derive(Clone, Debug)]
-pub enum SingularPathLocator<'a, 'b, 'c> {
-    Path(RequirePathLocator<'a, 'b, 'c>),
-    Luau(LuauPathLocator<'b, 'c>),
-    Roblox(RobloxPathLocator<'a, 'b, 'c>),
+pub enum SingularPathLocator<'b, 'resources> {
+    Path(RequirePathLocator<'b, 'resources>),
+    Luau(LuauPathLocator<'b, 'resources>),
+    Roblox(RobloxPathLocator<'b, 'resources>),
 }
 
-impl<'a, 'b, 'c> SingularPathLocator<'a, 'b, 'c> {
+impl<'b, 'resources> SingularPathLocator<'b, 'resources> {
     fn from(
-        value: &'a SingularRequireMode,
+        value: &SingularRequireMode,
         extra_module_relative_location: &'b Path,
-        resources: &'c Resources,
+        resources: &'resources Resources,
     ) -> Self {
         match value {
             SingularRequireMode::Path(path_require_mode) => Self::Path(RequirePathLocator::new(
-                path_require_mode,
+                path_require_mode.clone(),
                 extra_module_relative_location,
                 resources,
             )),
@@ -35,7 +35,7 @@ impl<'a, 'b, 'c> SingularPathLocator<'a, 'b, 'c> {
             )),
             SingularRequireMode::Roblox(roblox_require_mode) => {
                 Self::Roblox(RobloxPathLocator::new(
-                    roblox_require_mode,
+                    roblox_require_mode.clone(),
                     extra_module_relative_location,
                     resources,
                 ))
@@ -44,12 +44,12 @@ impl<'a, 'b, 'c> SingularPathLocator<'a, 'b, 'c> {
     }
 }
 
-impl PathLocator for SingularPathLocator<'_, '_, '_> {
+impl PathLocator for SingularPathLocator<'_, '_> {
     fn match_path_require_call(
         &self,
         call: &FunctionCall,
         source: &Path,
-    ) -> Option<(PathBuf, SingularPathLocator<'_, '_, '_>)> {
+    ) -> Option<(PathBuf, SingularPathLocator<'_, '_>)> {
         match self {
             SingularPathLocator::Path(require_path_locator) => {
                 require_path_locator.match_path_require_call(call, source)
@@ -83,15 +83,15 @@ impl PathLocator for SingularPathLocator<'_, '_, '_> {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct HybridPathLocator<'a, 'b, 'resources> {
-    path_locators: Vec<SingularPathLocator<'a, 'b, 'resources>>,
+pub(crate) struct HybridPathLocator<'b, 'resources> {
+    path_locators: Vec<SingularPathLocator<'b, 'resources>>,
 }
 
-impl<'a, 'b, 'c> HybridPathLocator<'a, 'b, 'c> {
+impl<'b, 'resources> HybridPathLocator<'b, 'resources> {
     pub(crate) fn new(
-        require_modes: &'a Vec<SingularRequireMode>,
+        require_modes: &Vec<SingularRequireMode>,
         extra_module_relative_location: &'b Path,
-        resources: &'c Resources,
+        resources: &'resources Resources,
     ) -> Self {
         let mut path_locators = Vec::new();
 
@@ -107,12 +107,12 @@ impl<'a, 'b, 'c> HybridPathLocator<'a, 'b, 'c> {
     }
 }
 
-impl PathLocator for HybridPathLocator<'_, '_, '_> {
+impl PathLocator for HybridPathLocator<'_, '_> {
     fn match_path_require_call(
         &self,
         call: &FunctionCall,
         source: &Path,
-    ) -> Option<(PathBuf, SingularPathLocator<'_, '_, '_>)> {
+    ) -> Option<(PathBuf, SingularPathLocator<'_, '_>)> {
         for locator in &self.path_locators {
             if let Some(x) = locator.match_path_require_call(call, source) {
                 return Some(x);

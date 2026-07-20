@@ -1,5 +1,7 @@
 # Changelog
 
+* use the closest `.luaurc` configuration to each file when bundling code ([#339](https://github.com/seaofvoices/darklua/pull/339))
+
 ## 0.19.0
 
 * add `json_lines` content loader and `/zstd`, `/gzip`, `/zlib` encoding variants for `string`, `buffer`, and `bytes` loaders ([#356](https://github.com/seaofvoices/darklua/pull/356))
